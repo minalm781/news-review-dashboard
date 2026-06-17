@@ -1,0 +1,90 @@
+// NextGen A360 — News Review Screen
+// https://www.prisma.io/docs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ComplianceStatus {
+  pending_review
+  compliant
+  non_compliant
+}
+
+enum LaunchStatus {
+  pending_launch
+  processing
+  launched
+}
+
+enum SyncStatus {
+  idle
+  running
+  success
+  failed
+}
+
+/// Campaign article pipeline: sync → compliance → Meta launch via n8n
+model ArticleCampaign {
+  id String @id @default(uuid()) @db.Uuid
+
+  url      String  @unique @db.VarChar(2048)
+  headline String  @db.Text
+  source   String? @db.VarChar(255)
+  category String? @db.VarChar(255)
+  location String? @db.VarChar(255)
+
+  publishedAt DateTime? @map("published_at") @db.Timestamp(3)
+  summary     String?   @db.Text
+
+  complianceStatus       ComplianceStatus @default(pending_review) @map("compliance_status")
+  complianceReason       String?          @map("compliance_reason") @db.VarChar(512)
+  complianceCheckedAt    DateTime?        @map("compliance_checked_at") @db.Timestamp(3)
+  complianceRetryCount   Int              @default(0) @map("compliance_retry_count")
+  complianceErrorMessage String?          @map("compliance_error_message") @db.Text
+  complianceNextRetryAt  DateTime?        @map("compliance_next_retry_at") @db.Timestamp(3)
+
+  launchStatus       LaunchStatus @default(pending_launch) @map("launch_status")
+  campaignId         String?      @map("campaign_id") @db.VarChar(255)
+  launchedAt         DateTime?    @map("launched_at") @db.Timestamp(3)
+  launchErrorMessage String?      @map("launch_error_message") @db.Text
+  n8nWebhookResponse Json?        @map("n8n_webhook_response")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  @@index([complianceStatus])
+  @@index([launchStatus])
+  @@index([source])
+  @@index([publishedAt(sort: Desc)])
+  @@index([complianceNextRetryAt])
+  @@index([complianceStatus, complianceNextRetryAt])
+  @@map("article_campaigns")
+}
+
+/// Singleton row tracking news API sync runs and compliance scheduling
+model SyncMetadata {
+  id String @id @default("default") @db.VarChar(32)
+
+  lastSyncedAt         DateTime? @map("last_synced_at") @db.Timestamp(3)
+  lastSyncStatus       SyncStatus @default(idle) @map("last_sync_status")
+  lastSyncError        String?   @map("last_sync_error") @db.Text
+  lastSyncInsertedCount Int?     @map("last_sync_inserted_count")
+  lastSyncSkippedCount  Int?     @map("last_sync_skipped_count")
+
+  /// Set to now + 15 minutes after a successful sync; compliance cron processes when due
+  complianceDueAt DateTime? @map("compliance_due_at") @db.Timestamp(3)
+  lastComplianceRunAt DateTime? @map("last_compliance_run_at") @db.Timestamp(3)
+  lastComplianceStatus SyncStatus @default(idle) @map("last_compliance_status")
+  lastComplianceError String? @map("last_compliance_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
+
+  @@map("sync_metadata")
+}
