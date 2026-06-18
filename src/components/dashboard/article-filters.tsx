@@ -17,21 +17,24 @@ export interface ArticleFilters {
   complianceStatus: ComplianceStatus | "all";
   launchStatus: LaunchStatus | "all";
   source: string;
+  category: string;
 }
 
 interface ArticleFiltersBarProps {
   filters: ArticleFilters;
   sources: string[];
+  categories: string[];
   onChange: (filters: ArticleFilters) => void;
 }
 
 export function ArticleFiltersBar({
   filters,
   sources,
+  categories,
   onChange,
 }: ArticleFiltersBarProps) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
       <div className="relative md:col-span-2 xl:col-span-1">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -98,6 +101,25 @@ export function ArticleFiltersBar({
           {sources.map((source) => (
             <SelectItem key={source} value={source}>
               {source}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={filters.category || "all"}
+        onValueChange={(value) =>
+          onChange({ ...filters, category: value === "all" ? "" : value })
+        }
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Category" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All categories</SelectItem>
+          {categories.map((cat) => (
+            <SelectItem key={cat} value={cat}>
+              {cat}
             </SelectItem>
           ))}
         </SelectContent>

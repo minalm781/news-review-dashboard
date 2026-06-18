@@ -4,6 +4,14 @@ import prisma from "@/lib/db";
 import type { ArticlesQueryInput } from "@/lib/validators/articles-query";
 import type { ArticleDto, StatsResponse } from "@/types/api";
 
+// Extended until `prisma generate` picks up the new migration columns
+type ArticleRow = ArticleCampaign & {
+  apiCategory: string | null;
+  complianceCategory: string | null;
+  primusJobId: string | null;
+  primusJobUrl: string | null;
+};
+
 const SORT_FIELD_MAP: Record<
   ArticlesQueryInput["sortBy"],
   keyof Prisma.ArticleCampaignOrderByWithRelationInput
@@ -18,27 +26,31 @@ const SORT_FIELD_MAP: Record<
   campaignId: "campaignId",
 };
 
-function toDto(article: ArticleCampaign): ArticleDto {
+function toDto(row: ArticleRow): ArticleDto {
   return {
-    id: article.id,
-    url: article.url,
-    headline: article.headline,
-    source: article.source,
-    category: article.category,
-    location: article.location,
-    publishedAt: article.publishedAt?.toISOString() ?? null,
-    summary: article.summary,
-    complianceStatus: article.complianceStatus,
-    complianceReason: article.complianceReason,
-    complianceCheckedAt: article.complianceCheckedAt?.toISOString() ?? null,
-    complianceRetryCount: article.complianceRetryCount,
-    complianceErrorMessage: article.complianceErrorMessage,
-    launchStatus: article.launchStatus,
-    campaignId: article.campaignId,
-    launchedAt: article.launchedAt?.toISOString() ?? null,
-    launchErrorMessage: article.launchErrorMessage,
-    createdAt: article.createdAt.toISOString(),
-    updatedAt: article.updatedAt.toISOString(),
+    id: row.id,
+    url: row.url,
+    headline: row.headline,
+    source: row.source,
+    category: row.category,
+    apiCategory: row.apiCategory,
+    complianceCategory: row.complianceCategory,
+    location: row.location,
+    publishedAt: row.publishedAt?.toISOString() ?? null,
+    summary: row.summary,
+    complianceStatus: row.complianceStatus,
+    complianceReason: row.complianceReason,
+    complianceCheckedAt: row.complianceCheckedAt?.toISOString() ?? null,
+    complianceRetryCount: row.complianceRetryCount,
+    complianceErrorMessage: row.complianceErrorMessage,
+    launchStatus: row.launchStatus,
+    campaignId: row.campaignId,
+    launchedAt: row.launchedAt?.toISOString() ?? null,
+    launchErrorMessage: row.launchErrorMessage,
+    primusJobId: row.primusJobId,
+    primusJobUrl: row.primusJobUrl,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -55,6 +67,10 @@ function buildWhere(query: ArticlesQueryInput): Prisma.ArticleCampaignWhereInput
 
   if (query.source) {
     where.source = query.source;
+  }
+
+  if (query.category) {
+    where.category = { equals: query.category, mode: "insensitive" };
   }
 
   if (query.search) {
@@ -75,7 +91,7 @@ export async function listArticles(query: ArticlesQueryInput) {
   const where = buildWhere(query);
   const orderByField = SORT_FIELD_MAP[query.sortBy];
 
-  const [rows, total, syncMetadata, sourceRows] = await Promise.all([
+  const [rows, total, syncMetadata, sourceRows, categoryRows] = await Promise.all([
     prisma.articleCampaign.findMany({
       where,
       orderBy: { [orderByField]: query.sortOrder },
@@ -90,10 +106,16 @@ export async function listArticles(query: ArticlesQueryInput) {
       distinct: ["source"],
       orderBy: { source: "asc" },
     }),
+    prisma.articleCampaign.findMany({
+      where: { category: { not: null } },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" },
+    }),
   ]);
 
   return {
-    data: rows.map(toDto),
+    data: (rows as unknown as ArticleRow[]).map(toDto),
     meta: {
       page: query.page,
       pageSize: query.pageSize,
@@ -104,6 +126,9 @@ export async function listArticles(query: ArticlesQueryInput) {
     sources: sourceRows
       .map((row) => row.source)
       .filter((source): source is string => Boolean(source)),
+    categories: categoryRows
+      .map((row) => row.category)
+      .filter((c): c is string => Boolean(c)),
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import type { RowSelectionState, SortingState } from "@tanstack/react-table";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -30,7 +31,21 @@ const DEFAULT_FILTERS: ArticleFilters = {
   complianceStatus: "all",
   launchStatus: "all",
   source: "",
+  category: "",
 };
+
+async function launchArticle(articleId: string) {
+  const res = await fetch("/api/launch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ articleId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? "Failed to start campaign");
+  }
+  return res.json();
+}
 
 export function DashboardShell() {
   const [filters, setFilters] = useState<ArticleFilters>(DEFAULT_FILTERS);
@@ -67,20 +82,34 @@ export function DashboardShell() {
       launchStatus:
         filters.launchStatus === "all" ? undefined : filters.launchStatus,
       source: filters.source || undefined,
+      category: filters.category || undefined,
     }),
     [page, sortBy, sortOrder, debouncedSearch, filters],
   );
 
+  const queryClient = useQueryClient();
   const articlesQuery = useArticles(queryParams);
   const statsQuery = useStats();
   const syncMutation = useSyncArticles();
+
+  const [launchingId, setLaunchingId] = useState<string | null>(null);
+  const launchMutation = useMutation({
+    mutationFn: launchArticle,
+    onMutate: (articleId) => setLaunchingId(articleId),
+    onSettled: () => {
+      setLaunchingId(null);
+      void queryClient.invalidateQueries({ queryKey: ["articles"] });
+      void queryClient.invalidateQueries({ queryKey: ["stats"] });
+    },
+  });
 
   const selectedCount = Object.keys(rowSelection).length;
   const hasFilters =
     Boolean(debouncedSearch) ||
     filters.complianceStatus !== "all" ||
     filters.launchStatus !== "all" ||
-    Boolean(filters.source);
+    Boolean(filters.source) ||
+    Boolean(filters.category);
 
   function handleRefresh() {
     syncMutation.mutate(undefined, {
@@ -154,6 +183,7 @@ export function DashboardShell() {
         <ArticleFiltersBar
           filters={filters}
           sources={articlesQuery.data?.sources ?? []}
+          categories={articlesQuery.data?.categories ?? []}
           onChange={(next) => {
             setFilters(next);
             setPage(1);
@@ -183,6 +213,8 @@ export function DashboardShell() {
             page={articlesQuery.data.meta.page}
             totalPages={articlesQuery.data.meta.totalPages}
             onPageChange={setPage}
+            onLaunch={(articleId) => launchMutation.mutate(articleId)}
+            launchingId={launchingId}
           />
         )}
 

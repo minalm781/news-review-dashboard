@@ -8,7 +8,7 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, ExternalLink } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, Rocket } from "lucide-react";
 import { useMemo } from "react";
 
 import { ComplianceBadge, LaunchBadge } from "@/components/dashboard/status-badges";
@@ -35,6 +35,8 @@ interface ArticlesTableProps {
   page: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  onLaunch?: (articleId: string) => void;
+  launchingId?: string | null;
 }
 
 function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
@@ -62,6 +64,8 @@ export function ArticlesTable({
   page,
   totalPages,
   onPageChange,
+  onLaunch,
+  launchingId,
 }: ArticlesTableProps) {
   const columns = useMemo<ColumnDef<ArticleDto>[]>(
     () => [
@@ -131,7 +135,22 @@ export function ArticlesTable({
         ),
       },
       { accessorKey: "source", header: "Source" },
-      { accessorKey: "category", header: "Category" },
+      {
+        accessorKey: "apiCategory",
+        header: "API Category",
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.apiCategory ?? "—"}</span>
+        ),
+        enableSorting: false,
+      },
+      {
+        accessorKey: "complianceCategory",
+        header: "Compliance Category",
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.complianceCategory ?? "—"}</span>
+        ),
+        enableSorting: false,
+      },
       {
         accessorKey: "complianceStatus",
         header: "Compliance",
@@ -175,34 +194,74 @@ export function ArticlesTable({
         cell: ({ row }) => formatDate(row.original.publishedAt),
       },
       {
-        id: "actions",
-        header: "Launch",
+        id: "startCampaign",
+        header: "Start Campaign",
         cell: ({ row }) => {
-          const isCompliant = row.original.complianceStatus === "compliant";
-          const isProcessing = row.original.launchStatus === "processing";
-          const isLaunched = row.original.launchStatus === "launched";
+          const article = row.original;
+          const isCompliant = article.complianceStatus === "compliant";
+          const isProcessing = article.launchStatus === "processing";
+          const isLaunched = article.launchStatus === "launched";
+          const isThisLaunching = launchingId === article.id;
 
           return (
             <Button
               size="sm"
-              variant="outline"
-              disabled={!isCompliant || isProcessing || isLaunched}
+              variant={isLaunched ? "ghost" : "default"}
+              disabled={!isCompliant || isProcessing || isLaunched || isThisLaunching}
               title={
                 !isCompliant
                   ? "Only compliant articles can be launched"
                   : isLaunched
                     ? "Campaign already launched"
-                    : "Launch API available in Phase 4"
+                    : isProcessing
+                      ? "Launch in progress"
+                      : "Start campaign via Primus"
               }
+              onClick={() => onLaunch?.(article.id)}
+              className="gap-1.5"
             >
-              Launch
+              <Rocket className="h-3.5 w-3.5" />
+              {isThisLaunching ? "Starting…" : isLaunched ? "Launched" : isProcessing ? "Processing…" : "Start"}
             </Button>
           );
         },
         enableSorting: false,
       },
+      {
+        id: "primusJob",
+        header: "Primus Job",
+        cell: ({ row }) => {
+          const { primusJobId, primusJobUrl } = row.original;
+          if (!primusJobId && !primusJobUrl) return <span className="text-muted-foreground">—</span>;
+
+          const href = primusJobUrl ?? undefined;
+          const label = primusJobId ?? "View job";
+
+          if (href) {
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-mono font-medium hover:bg-muted/80 hover:underline"
+                title={`Open Primus job ${label}`}
+              >
+                {label}
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            );
+          }
+
+          return (
+            <span className="rounded-md bg-muted px-2 py-1 text-xs font-mono font-medium">
+              {label}
+            </span>
+          );
+        },
+        enableSorting: false,
+      },
     ],
-    [],
+    [onLaunch, launchingId],
   );
 
   const table = useReactTable({

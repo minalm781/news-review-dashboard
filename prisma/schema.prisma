@@ -55,6 +55,16 @@ model ArticleCampaign {
   launchErrorMessage String?      @map("launch_error_message") @db.Text
   n8nWebhookResponse Json?        @map("n8n_webhook_response")
 
+  /// Category tag returned by the News Launcher / sync API
+  apiCategory        String? @map("api_category") @db.VarChar(255)
+  /// Category determined by the compliance system (LLM classification)
+  complianceCategory String? @map("compliance_category") @db.VarChar(255)
+
+  /// Primus batch job identifier returned after launch
+  primusJobId  String? @map("primus_job_id") @db.VarChar(255)
+  /// Direct URL to the Primus dashboard job detail page
+  primusJobUrl String? @map("primus_job_url") @db.VarChar(2048)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(3)
 

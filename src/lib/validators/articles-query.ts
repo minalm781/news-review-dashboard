@@ -21,6 +21,7 @@ export const articlesQuerySchema = z.object({
   complianceStatus: z.nativeEnum(ComplianceStatus).optional(),
   launchStatus: z.nativeEnum(LaunchStatus).optional(),
   source: z.string().trim().optional(),
+  category: z.string().trim().optional(),
 });
 
 export type ArticlesQueryInput = z.infer<typeof articlesQuerySchema>;

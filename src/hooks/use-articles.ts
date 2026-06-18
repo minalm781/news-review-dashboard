@@ -22,6 +22,7 @@ async function fetchArticles(
     searchParams.set("launchStatus", params.launchStatus);
   }
   if (params.source) searchParams.set("source", params.source);
+  if (params.category) searchParams.set("category", params.category);
 
   const response = await fetch(`/api/articles?${searchParams.toString()}`);
 

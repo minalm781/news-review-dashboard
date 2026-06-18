@@ -8,12 +8,22 @@ import {
 
 const prisma = new PrismaClient();
 
-const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
+// Extended type until `prisma generate` picks up the new migration columns
+type SeedArticle = Prisma.ArticleCampaignCreateManyInput & {
+  apiCategory?: string | null;
+  complianceCategory?: string | null;
+  primusJobId?: string | null;
+  primusJobUrl?: string | null;
+};
+
+const SEED_ARTICLES: SeedArticle[] = [
   {
     url: "https://apnews.com/article/seed-pending-review-001",
     headline: "[SEED] Article awaiting compliance review",
     source: "apnews.com",
     category: "Top News",
+    apiCategory: "Top News",
+    complianceCategory: null,
     location: null,
     publishedAt: new Date("2026-06-04T10:00:00Z"),
     summary: null,
@@ -27,6 +37,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: null,
     launchedAt: null,
     launchErrorMessage: null,
+    primusJobId: null,
+    primusJobUrl: null,
     n8nWebhookResponse: Prisma.JsonNull,
   },
   {
@@ -34,6 +46,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     headline: "[SEED] Compliant article ready for Meta launch",
     source: "apnews.com",
     category: "Top News",
+    apiCategory: "Top News",
+    complianceCategory: "General News",
     location: "United States",
     publishedAt: new Date("2026-06-04T09:30:00Z"),
     summary:
@@ -48,6 +62,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: null,
     launchedAt: null,
     launchErrorMessage: null,
+    primusJobId: null,
+    primusJobUrl: null,
     n8nWebhookResponse: Prisma.JsonNull,
   },
   {
@@ -55,6 +71,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     headline: "[SEED] Non-compliant article — launch blocked",
     source: "apnews.com",
     category: "Politics",
+    apiCategory: "Politics",
+    complianceCategory: "Political Content",
     location: "Washington, DC",
     publishedAt: new Date("2026-06-04T08:00:00Z"),
     summary: "Partial summary before compliance rejection.",
@@ -68,6 +86,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: null,
     launchedAt: null,
     launchErrorMessage: null,
+    primusJobId: null,
+    primusJobUrl: null,
     n8nWebhookResponse: Prisma.JsonNull,
   },
   {
@@ -75,6 +95,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     headline: "[SEED] Compliant article — launch in progress",
     source: "reuters.com",
     category: "Business",
+    apiCategory: "Business",
+    complianceCategory: "Finance & Economy",
     location: "New York, NY",
     publishedAt: new Date("2026-06-03T18:00:00Z"),
     summary: "Business segment summary for in-flight campaign creation.",
@@ -88,6 +110,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: null,
     launchedAt: null,
     launchErrorMessage: null,
+    primusJobId: "primus-job-88214",
+    primusJobUrl: "https://primus.example.com/jobs/primus-job-88214",
     n8nWebhookResponse: { status: "accepted", queuedAt: "2026-06-04T12:00:00Z" },
   },
   {
@@ -95,6 +119,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     headline: "[SEED] Successfully launched campaign article",
     source: "bbc.com",
     category: "World",
+    apiCategory: "World",
+    complianceCategory: "International News",
     location: "London, UK",
     publishedAt: new Date("2026-06-02T14:00:00Z"),
     summary: "World news summary tied to an active Meta campaign.",
@@ -108,6 +134,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: "meta-campaign-seed-10042",
     launchedAt: new Date("2026-06-02T16:30:00Z"),
     launchErrorMessage: null,
+    primusJobId: "primus-job-77103",
+    primusJobUrl: "https://primus.example.com/jobs/primus-job-77103",
     n8nWebhookResponse: {
       status: "success",
       campaign_id: "meta-campaign-seed-10042",
@@ -118,6 +146,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     headline: "[SEED] Launch failed — eligible for relaunch",
     source: "cnn.com",
     category: "Top News",
+    apiCategory: "Top News",
+    complianceCategory: "General News",
     location: "Atlanta, GA",
     publishedAt: new Date("2026-06-03T12:00:00Z"),
     summary: "Article where n8n workflow failed; operator may relaunch.",
@@ -131,6 +161,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: null,
     launchedAt: null,
     launchErrorMessage: "n8n workflow timeout: Meta API did not respond within 120s",
+    primusJobId: null,
+    primusJobUrl: null,
     n8nWebhookResponse: { status: "error", code: "TIMEOUT" },
   },
   {
@@ -138,6 +170,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     headline: "[SEED] Compliance retry scheduled",
     source: "npr.org",
     category: "Culture",
+    apiCategory: "Culture",
+    complianceCategory: null,
     location: null,
     publishedAt: new Date("2026-06-04T07:00:00Z"),
     summary: null,
@@ -151,6 +185,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: null,
     launchedAt: null,
     launchErrorMessage: null,
+    primusJobId: null,
+    primusJobUrl: null,
     n8nWebhookResponse: Prisma.JsonNull,
   },
   {
@@ -158,6 +194,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     headline: "[SEED] Compliance exhausted retries",
     source: "theguardian.com",
     category: "Opinion",
+    apiCategory: "Opinion",
+    complianceCategory: "Opinion & Editorial",
     location: null,
     publishedAt: new Date("2026-06-01T10:00:00Z"),
     summary: null,
@@ -172,6 +210,8 @@ const SEED_ARTICLES: Prisma.ArticleCampaignCreateManyInput[] = [
     campaignId: null,
     launchedAt: null,
     launchErrorMessage: null,
+    primusJobId: null,
+    primusJobUrl: null,
     n8nWebhookResponse: Prisma.JsonNull,
   },
 ];
@@ -183,7 +223,7 @@ async function main() {
   await prisma.syncMetadata.deleteMany();
 
   const articles = await prisma.articleCampaign.createMany({
-    data: SEED_ARTICLES,
+    data: SEED_ARTICLES as Prisma.ArticleCampaignCreateManyInput[],
   });
 
   const lastSyncedAt = new Date("2026-06-04T11:30:00Z");
