@@ -2,7 +2,8 @@
 
 import type { RowSelectionState, SortingState } from "@tanstack/react-table";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -87,8 +88,14 @@ export function DashboardShell() {
     [page, sortBy, sortOrder, debouncedSearch, filters],
   );
 
+  const router = useRouter();
   const queryClient = useQueryClient();
   const articlesQuery = useArticles(queryParams);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  }
   const statsQuery = useStats();
   const syncMutation = useSyncArticles();
 
@@ -157,14 +164,19 @@ export function DashboardShell() {
               </p>
             ) : null}
           </div>
-          <Button
-            variant="outline"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
-            {syncMutation.isPending ? "Syncing…" : "Refresh"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={isRefreshing ? "animate-spin" : ""} />
+              {syncMutation.isPending ? "Syncing…" : "Refresh"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} title="Sign out">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
