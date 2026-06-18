@@ -1,7 +1,8 @@
 "use client";
 
-import type { RowSelectionState, SortingState } from "@tanstack/react-table";
+import type { SortingState } from "@tanstack/react-table";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { LogOut, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -16,6 +17,7 @@ import {
   ArticlesTable,
   ArticlesTableSkeleton,
 } from "@/components/dashboard/articles-table";
+import { CreateCampaignModal } from "@/components/dashboard/create-campaign-modal";
 import {
   MetricsCards,
   MetricsCardsSkeleton,
@@ -25,7 +27,7 @@ import { useArticles } from "@/hooks/use-articles";
 import { useStats } from "@/hooks/use-stats";
 import { useSyncArticles } from "@/hooks/use-sync-articles";
 import { formatDate } from "@/lib/utils";
-import type { SortableArticleField } from "@/types/api";
+import type { ArticleDto, SortableArticleField } from "@/types/api";
 
 const DEFAULT_FILTERS: ArticleFilters = {
   search: "",
@@ -35,15 +37,15 @@ const DEFAULT_FILTERS: ArticleFilters = {
   category: "",
 };
 
-async function launchArticle(articleId: string) {
-  const res = await fetch("/api/launch", {
+async function triggerCompliance(articleId: string) {
+  const res = await fetch("/api/compliance", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ articleId }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? "Failed to start campaign");
+    throw new Error(body.error ?? "Failed to trigger compliance check");
   }
   return res.json();
 }
@@ -55,7 +57,6 @@ export function DashboardShell() {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "publishedAt", desc: true },
   ]);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -99,18 +100,19 @@ export function DashboardShell() {
   const statsQuery = useStats();
   const syncMutation = useSyncArticles();
 
-  const [launchingId, setLaunchingId] = useState<string | null>(null);
-  const launchMutation = useMutation({
-    mutationFn: launchArticle,
-    onMutate: (articleId) => setLaunchingId(articleId),
+  const [campaignArticle, setCampaignArticle] = useState<ArticleDto | null>(null);
+
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const complianceMutation = useMutation({
+    mutationFn: triggerCompliance,
+    onMutate: (articleId) => setCheckingId(articleId),
     onSettled: () => {
-      setLaunchingId(null);
+      setCheckingId(null);
       void queryClient.invalidateQueries({ queryKey: ["articles"] });
       void queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
   });
 
-  const selectedCount = Object.keys(rowSelection).length;
   const hasFilters =
     Boolean(debouncedSearch) ||
     filters.complianceStatus !== "all" ||
@@ -122,7 +124,6 @@ export function DashboardShell() {
     syncMutation.mutate(undefined, {
       onSuccess: () => {
         setPage(1);
-        setRowSelection({});
       },
     });
   }
@@ -134,6 +135,15 @@ export function DashboardShell() {
 
   return (
     <div className="min-h-screen bg-background">
+      <CreateCampaignModal
+        article={campaignArticle}
+        onClose={() => setCampaignArticle(null)}
+        onSuccess={() => {
+          void queryClient.invalidateQueries({ queryKey: ["articles"] });
+          void queryClient.invalidateQueries({ queryKey: ["stats"] });
+          setCampaignArticle(null);
+        }}
+      />
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div>
@@ -220,26 +230,15 @@ export function DashboardShell() {
               setSorting(next);
               setPage(1);
             }}
-            rowSelection={rowSelection}
-            onRowSelectionChange={setRowSelection}
             page={articlesQuery.data.meta.page}
             totalPages={articlesQuery.data.meta.totalPages}
             onPageChange={setPage}
-            onLaunch={(articleId) => launchMutation.mutate(articleId)}
-            launchingId={launchingId}
+            onCreateCampaign={(article) => setCampaignArticle(article)}
+            onComplianceCheck={(articleId) => complianceMutation.mutate(articleId)}
+            checkingId={checkingId}
           />
         )}
 
-        {selectedCount > 0 ? (
-          <div className="sticky bottom-4 z-20 mx-auto flex max-w-[1600px] items-center justify-between rounded-xl border bg-card px-4 py-3 shadow-lg">
-            <p className="text-sm font-medium">
-              {selectedCount} article{selectedCount === 1 ? "" : "s"} selected
-            </p>
-            <Button disabled title="Bulk launch available in Phase 4">
-              Launch Selected
-            </Button>
-          </div>
-        ) : null}
       </main>
     </div>
   );

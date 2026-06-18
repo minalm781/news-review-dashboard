@@ -5,15 +5,21 @@ import {
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
-  type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, Rocket } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ExternalLink,
+  Rocket,
+  ShieldCheck,
+} from "lucide-react";
 import { useMemo } from "react";
 
 import { ComplianceBadge, LaunchBadge } from "@/components/dashboard/status-badges";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -30,13 +36,12 @@ interface ArticlesTableProps {
   articles: ArticleDto[];
   sorting: SortingState;
   onSortingChange: (sorting: SortingState) => void;
-  rowSelection: RowSelectionState;
-  onRowSelectionChange: (selection: RowSelectionState) => void;
   page: number;
   totalPages: number;
   onPageChange: (page: number) => void;
-  onLaunch?: (articleId: string) => void;
-  launchingId?: string | null;
+  onCreateCampaign?: (article: ArticleDto) => void;
+  onComplianceCheck?: (articleId: string) => void;
+  checkingId?: string | null;
 }
 
 function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
@@ -55,124 +60,219 @@ export function ArticlesTableSkeleton() {
   );
 }
 
+const sortableColumns: Record<string, SortableArticleField> = {
+  headline: "headline",
+  source: "source",
+  complianceStatus: "complianceStatus",
+  launchStatus: "launchStatus",
+  campaignId: "campaignId",
+  location: "location",
+  publishedAt: "publishedAt",
+};
+
 export function ArticlesTable({
   articles,
   sorting,
   onSortingChange,
-  rowSelection,
-  onRowSelectionChange,
   page,
   totalPages,
   onPageChange,
-  onLaunch,
-  launchingId,
+  onCreateCampaign,
+  onComplianceCheck,
+  checkingId,
 }: ArticlesTableProps) {
   const columns = useMemo<ColumnDef<ArticleDto>[]>(
     () => [
+      // 1. Article Link
       {
-        id: "select",
-        header: ({ table }) => {
-          const compliantRows = table
-            .getRowModel()
-            .rows.filter((row) => row.original.complianceStatus === "compliant");
-          const selectedCompliant = compliantRows.filter((row) =>
-            row.getIsSelected(),
-          );
-          const allSelected =
-            compliantRows.length > 0 &&
-            selectedCompliant.length === compliantRows.length;
-          const someSelected =
-            selectedCompliant.length > 0 &&
-            selectedCompliant.length < compliantRows.length;
-
-          return (
-            <Checkbox
-              checked={allSelected || (someSelected && "indeterminate")}
-              disabled={compliantRows.length === 0}
-              onCheckedChange={(value) => {
-                compliantRows.forEach((row) => row.toggleSelected(!!value));
-              }}
-              aria-label="Select all compliant articles"
-            />
-          );
-        },
-        cell: ({ row }) => {
-          const isCompliant = row.original.complianceStatus === "compliant";
-          return (
-            <Checkbox
-              checked={row.getIsSelected()}
-              disabled={!isCompliant}
-              onCheckedChange={(value) => row.toggleSelected(!!value)}
-              aria-label={`Select ${row.original.headline}`}
-            />
-          );
-        },
-        enableSorting: false,
-      },
-      {
-        accessorKey: "url",
+        id: "url",
         header: "Article Link",
         cell: ({ row }) => (
           <a
             href={row.original.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
+            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-medium text-blue-700 hover:underline"
           >
             Open
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
           </a>
         ),
         enableSorting: false,
       },
+
+      // 2. Headline
       {
         accessorKey: "headline",
         header: "Headline",
         cell: ({ row }) => (
-          <span className="line-clamp-2 max-w-xs font-medium">
+          <span className="line-clamp-2 block w-[220px] font-medium">
             {row.original.headline}
           </span>
         ),
       },
-      { accessorKey: "source", header: "Source" },
+
+      // 3. Source
       {
-        accessorKey: "apiCategory",
-        header: "API Category",
+        accessorKey: "source",
+        header: "Source",
         cell: ({ row }) => (
-          <span className="text-sm">{row.original.apiCategory ?? "—"}</span>
+          <span className="whitespace-nowrap text-sm">{row.original.source ?? "—"}</span>
         ),
+      },
+
+      // 4. Article Type (from News Launcher API)
+      {
+        id: "articleType",
+        header: "Article Type",
+        cell: ({ row }) => {
+          const type = row.original.apiCategory ?? row.original.category;
+          return (
+            <span className="whitespace-nowrap rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+              {type ?? "—"}
+            </span>
+          );
+        },
         enableSorting: false,
       },
+
+      // 5. Location
       {
-        accessorKey: "complianceCategory",
-        header: "Compliance Category",
+        accessorKey: "location",
+        header: "Location",
         cell: ({ row }) => (
-          <span className="text-sm">{row.original.complianceCategory ?? "—"}</span>
-        ),
-        enableSorting: false,
-      },
-      {
-        accessorKey: "complianceStatus",
-        header: "Compliance",
-        cell: ({ row }) => (
-          <ComplianceBadge status={row.original.complianceStatus} />
-        ),
-      },
-      {
-        accessorKey: "complianceReason",
-        header: "Reason",
-        cell: ({ row }) => (
-          <span className="line-clamp-2 max-w-[12rem] text-muted-foreground">
-            {row.original.complianceReason ?? "—"}
+          <span className="whitespace-nowrap text-sm">
+            {row.original.location ?? "—"}
           </span>
         ),
+      },
+
+      // 6. Compliance Check (button)
+      {
+        id: "complianceCheck",
+        header: "Compliance Check",
+        cell: ({ row }) => {
+          const article = row.original;
+          const isChecking = checkingId === article.id;
+          const isLaunched = article.launchStatus === "launched";
+          const isPending = article.complianceStatus === "pending_review";
+
+          return (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isLaunched || isChecking || isPending}
+              title={
+                isLaunched
+                  ? "Cannot re-check a launched article"
+                  : isPending
+                    ? "Compliance check already queued"
+                    : "Trigger compliance check"
+              }
+              onClick={() => onComplianceCheck?.(article.id)}
+              className="gap-1.5 whitespace-nowrap"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {isChecking ? "Checking…" : isPending ? "Queued" : "Check"}
+            </Button>
+          );
+        },
         enableSorting: false,
       },
+
+      // 7. Compliance Status
+      {
+        accessorKey: "complianceStatus",
+        header: "Compliance Status",
+        cell: ({ row }) => <ComplianceBadge status={row.original.complianceStatus} />,
+      },
+
+      // 8. Compliance Reason / Feedback
+      {
+        id: "complianceFeedback",
+        header: "Compliance Feedback",
+        cell: ({ row }) => {
+          const reason = row.original.complianceReason;
+          const error = row.original.complianceErrorMessage;
+          return (
+            <span className="line-clamp-2 block w-[200px] text-sm text-muted-foreground">
+              {reason ?? error ?? "—"}
+            </span>
+          );
+        },
+        enableSorting: false,
+      },
+
+      // 9. Create Campaign (opens modal)
+      {
+        id: "createCampaign",
+        header: "Create Campaign",
+        cell: ({ row }) => {
+          const article = row.original;
+          const isCompliant = article.complianceStatus === "compliant";
+          const isProcessing = article.launchStatus === "processing";
+          const isLaunched = article.launchStatus === "launched";
+
+          return (
+            <Button
+              size="sm"
+              variant={isLaunched ? "ghost" : "default"}
+              disabled={!isCompliant || isProcessing || isLaunched}
+              title={
+                !isCompliant
+                  ? "Article must be compliant first"
+                  : isLaunched
+                    ? "Campaign already launched"
+                    : isProcessing
+                      ? "Campaign in progress"
+                      : "Create campaign via Primus"
+              }
+              onClick={() => onCreateCampaign?.(article)}
+              className="gap-1.5 whitespace-nowrap"
+            >
+              <Rocket className="h-3.5 w-3.5" />
+              {isLaunched ? "Launched" : isProcessing ? "In Progress…" : "Create"}
+            </Button>
+          );
+        },
+        enableSorting: false,
+      },
+
+      // 10. Campaign Status (campaignId)
+      {
+        accessorKey: "campaignId",
+        header: "Campaign Status",
+        cell: ({ row }) => {
+          const { campaignId, launchStatus } = row.original;
+          if (campaignId) {
+            return (
+              <div className="flex flex-col gap-0.5">
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 w-fit">
+                  Active
+                </span>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  {campaignId}
+                </span>
+              </div>
+            );
+          }
+          if (launchStatus === "processing") {
+            return (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                Creating…
+              </span>
+            );
+          }
+          return <span className="text-muted-foreground">—</span>;
+        },
+      },
+
+      // 11. Launch Status
       {
         accessorKey: "launchStatus",
-        header: "Launch",
+        header: "Launch Status",
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <LaunchBadge status={row.original.launchStatus} />
             {row.original.launchErrorMessage ? (
               <span title={row.original.launchErrorMessage}>
@@ -182,68 +282,52 @@ export function ArticlesTable({
           </div>
         ),
       },
-      {
-        accessorKey: "campaignId",
-        header: "Campaign ID",
-        cell: ({ row }) => row.original.campaignId ?? "—",
-      },
-      { accessorKey: "location", header: "Location", cell: ({ row }) => row.original.location ?? "—" },
-      {
-        accessorKey: "publishedAt",
-        header: "Published",
-        cell: ({ row }) => formatDate(row.original.publishedAt),
-      },
-      {
-        id: "startCampaign",
-        header: "Start Campaign",
-        cell: ({ row }) => {
-          const article = row.original;
-          const isCompliant = article.complianceStatus === "compliant";
-          const isProcessing = article.launchStatus === "processing";
-          const isLaunched = article.launchStatus === "launched";
-          const isThisLaunching = launchingId === article.id;
 
+      // 12. Launched At / Published At
+      {
+        id: "timestamp",
+        header: "Launched / Published",
+        cell: ({ row }) => {
+          const { launchedAt, publishedAt } = row.original;
+          if (launchedAt) {
+            return (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-600">
+                  Launched
+                </span>
+                <span className="whitespace-nowrap text-sm">{formatDate(launchedAt)}</span>
+              </div>
+            );
+          }
           return (
-            <Button
-              size="sm"
-              variant={isLaunched ? "ghost" : "default"}
-              disabled={!isCompliant || isProcessing || isLaunched || isThisLaunching}
-              title={
-                !isCompliant
-                  ? "Only compliant articles can be launched"
-                  : isLaunched
-                    ? "Campaign already launched"
-                    : isProcessing
-                      ? "Launch in progress"
-                      : "Start campaign via Primus"
-              }
-              onClick={() => onLaunch?.(article.id)}
-              className="gap-1.5"
-            >
-              <Rocket className="h-3.5 w-3.5" />
-              {isThisLaunching ? "Starting…" : isLaunched ? "Launched" : isProcessing ? "Processing…" : "Start"}
-            </Button>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Published
+              </span>
+              <span className="whitespace-nowrap text-sm">{formatDate(publishedAt)}</span>
+            </div>
           );
         },
         enableSorting: false,
       },
+
+      // 13. Primus Job ID / URL
       {
         id: "primusJob",
         header: "Primus Job",
         cell: ({ row }) => {
           const { primusJobId, primusJobUrl } = row.original;
-          if (!primusJobId && !primusJobUrl) return <span className="text-muted-foreground">—</span>;
-
-          const href = primusJobUrl ?? undefined;
+          if (!primusJobId && !primusJobUrl) {
+            return <span className="text-muted-foreground">—</span>;
+          }
           const label = primusJobId ?? "View job";
-
-          if (href) {
+          if (primusJobUrl) {
             return (
               <a
-                href={href}
+                href={primusJobUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-mono font-medium hover:bg-muted/80 hover:underline"
+                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 font-mono text-xs font-medium hover:bg-muted/70 hover:underline"
                 title={`Open Primus job ${label}`}
               >
                 {label}
@@ -251,9 +335,8 @@ export function ArticlesTable({
               </a>
             );
           }
-
           return (
-            <span className="rounded-md bg-muted px-2 py-1 text-xs font-mono font-medium">
+            <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs font-medium">
               {label}
             </span>
           );
@@ -261,90 +344,64 @@ export function ArticlesTable({
         enableSorting: false,
       },
     ],
-    [onLaunch, launchingId],
+    [onCreateCampaign, onComplianceCheck, checkingId],
   );
 
   const table = useReactTable({
     data: articles,
     columns,
-    state: { sorting, rowSelection },
+    state: { sorting },
     onSortingChange: (updater) => {
       const next = typeof updater === "function" ? updater(sorting) : updater;
       onSortingChange(next);
     },
-    onRowSelectionChange: (updater) => {
-      const next =
-        typeof updater === "function" ? updater(rowSelection) : updater;
-      onRowSelectionChange(next);
-    },
     getCoreRowModel: getCoreRowModel(),
-    enableRowSelection: (row) => row.original.complianceStatus === "compliant",
     manualSorting: true,
     getRowId: (row) => row.id,
   });
 
-  const sortableColumns: Record<string, SortableArticleField> = {
-    headline: "headline",
-    source: "source",
-    category: "category",
-    complianceStatus: "complianceStatus",
-    launchStatus: "launchStatus",
-    campaignId: "campaignId",
-    location: "location",
-    publishedAt: "publishedAt",
-  };
-
   return (
     <div className="rounded-xl border bg-card shadow-sm">
+      {/* Horizontal + vertical scroll */}
       <div className="max-h-[calc(100vh-22rem)] overflow-auto">
-        <Table>
+        <Table className="min-w-[1600px]">
           <TableHeader className="sticky top-0 z-10 bg-card">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const sortField = sortableColumns[header.column.id];
-                  const sortDirection = sortField
-                    ? sorting.find((item) => item.id === header.column.id)?.desc
+                  const sortDir = sortField
+                    ? sorting.find((s) => s.id === header.column.id)?.desc
                       ? "desc"
-                      : sorting.find((item) => item.id === header.column.id)
+                      : sorting.find((s) => s.id === header.column.id)
                         ? "asc"
                         : false
                     : false;
 
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="whitespace-nowrap">
                       {header.isPlaceholder ? null : sortField ? (
                         <button
                           type="button"
                           className="inline-flex items-center font-medium hover:text-foreground"
                           onClick={() => {
                             const existing = sorting.find(
-                              (item) => item.id === header.column.id,
+                              (s) => s.id === header.column.id,
                             );
                             if (!existing) {
-                              onSortingChange([
-                                { id: header.column.id, desc: false },
-                              ]);
+                              onSortingChange([{ id: header.column.id, desc: false }]);
                             } else if (!existing.desc) {
-                              onSortingChange([
-                                { id: header.column.id, desc: true },
-                              ]);
+                              onSortingChange([{ id: header.column.id, desc: true }]);
                             } else {
                               onSortingChange([]);
                             }
                           }}
                         >
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                          <SortIcon direction={sortDirection} />
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          <SortIcon direction={sortDir} />
                         </button>
                       ) : (
-                        flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )
+                        flexRender(header.column.columnDef.header, header.getContext())
                       )}
                     </TableHead>
                   );
@@ -354,7 +411,7 @@ export function ArticlesTable({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+              <TableRow key={row.id}>
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
