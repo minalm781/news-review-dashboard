@@ -190,25 +190,22 @@ export function ArticlesTable({
           const article = row.original;
           const isChecking = checkingId === article.id;
           const isLaunched = article.launchStatus === "launched";
-          const isPending = article.complianceStatus === "pending_review";
 
           return (
             <Button
               size="sm"
               variant="outline"
-              disabled={isLaunched || isChecking || isPending}
+              disabled={isLaunched || isChecking}
               title={
                 isLaunched
                   ? "Cannot re-check a launched article"
-                  : isPending
-                    ? "Compliance check already queued"
-                    : "Trigger compliance check"
+                  : "Trigger compliance check"
               }
               onClick={() => onComplianceCheck?.(article.id)}
               className="gap-1.5 whitespace-nowrap"
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              {isChecking ? "Checking…" : isPending ? "Queued" : "Check"}
+              {isChecking ? "Checking…" : "Check"}
             </Button>
           );
         },
