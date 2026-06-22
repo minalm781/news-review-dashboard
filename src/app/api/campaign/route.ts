@@ -4,7 +4,7 @@ import { z } from "zod";
 import prisma from "@/lib/db";
 
 const bodySchema = z.object({
-  articleId: z.string().uuid(),
+  articleIds: z.array(z.string().uuid()).min(1),
   batchName: z.string().min(1),
   team: z.string().min(1),
   trafficRoute: z.string().min(1),
@@ -29,30 +29,40 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = bodySchema.parse(body);
 
-    const article = await prisma.articleCampaign.findUnique({
-      where: { id: data.articleId },
+    const articles = await prisma.articleCampaign.findMany({
+      where: { id: { in: data.articleIds } },
     });
 
-    if (!article) {
-      return NextResponse.json({ error: "Article not found" }, { status: 404 });
+    if (articles.length === 0) {
+      return NextResponse.json({ error: "No articles found" }, { status: 404 });
     }
 
-    if (article.complianceStatus !== "compliant") {
+    const nonCompliant = articles.filter((a) => a.complianceStatus !== "compliant");
+    if (nonCompliant.length > 0) {
       return NextResponse.json(
-        { error: "Article must be compliant before creating a campaign" },
+        {
+          error: `${nonCompliant.length} article(s) are not compliant and cannot be included`,
+          nonCompliantIds: nonCompliant.map((a) => a.id),
+        },
         { status: 422 },
       );
     }
 
-    if (article.launchStatus === "launched") {
+    const alreadyLaunched = articles.filter((a) => a.launchStatus === "launched");
+    if (alreadyLaunched.length === articles.length) {
       return NextResponse.json(
-        { error: "Campaign already launched" },
+        { error: "All selected articles are already launched" },
         { status: 409 },
       );
     }
 
-    const updated = await prisma.articleCampaign.update({
-      where: { id: data.articleId },
+    // Update all eligible articles in one transaction
+    const eligibleIds = articles
+      .filter((a) => a.launchStatus !== "launched")
+      .map((a) => a.id);
+
+    await prisma.articleCampaign.updateMany({
+      where: { id: { in: eligibleIds } },
       data: {
         campaignId: data.batchName,
         launchStatus: "processing",
@@ -72,10 +82,11 @@ export async function POST(request: NextRequest) {
             : {}),
         },
         body: JSON.stringify({
-          articleId: updated.id,
-          url: updated.url,
-          headline: updated.headline,
           ...data,
+          articleIds: eligibleIds,
+          articles: articles
+            .filter((a) => eligibleIds.includes(a.id))
+            .map((a) => ({ id: a.id, url: a.url, headline: a.headline })),
         }),
       }).catch((err) =>
         console.error("[POST /api/campaign] webhook error:", err),
@@ -83,10 +94,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      id: updated.id,
-      campaignId: updated.campaignId,
-      launchStatus: updated.launchStatus,
-      primusJobUrl: updated.primusJobUrl,
+      updated: eligibleIds.length,
+      skipped: alreadyLaunched.length,
+      campaignId: data.batchName,
+      launchStatus: "processing",
+      articleIds: eligibleIds,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

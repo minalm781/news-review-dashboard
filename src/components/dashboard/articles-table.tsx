@@ -20,6 +20,7 @@ import { useMemo } from "react";
 
 import { ComplianceBadge, LaunchBadge } from "@/components/dashboard/status-badges";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -42,6 +43,10 @@ interface ArticlesTableProps {
   onCreateCampaign?: (article: ArticleDto) => void;
   onComplianceCheck?: (articleId: string) => void;
   checkingId?: string | null;
+  rowSelection?: Record<string, boolean>;
+  onRowSelectionChange?: (selection: Record<string, boolean>) => void;
+  onBulkCreateCampaign?: () => void;
+  selectedCompliantCount?: number;
 }
 
 function SortIcon({ direction }: { direction: false | "asc" | "desc" }) {
@@ -80,9 +85,39 @@ export function ArticlesTable({
   onCreateCampaign,
   onComplianceCheck,
   checkingId,
+  rowSelection = {},
+  onRowSelectionChange,
+  onBulkCreateCampaign,
+  selectedCompliantCount = 0,
 }: ArticlesTableProps) {
+
   const columns = useMemo<ColumnDef<ArticleDto>[]>(
     () => [
+      // 0. Checkbox select
+      {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected()
+                ? true
+                : table.getIsSomePageRowsSelected()
+                  ? "indeterminate"
+                  : false
+            }
+            onCheckedChange={(val) => table.toggleAllPageRowsSelected(!!val)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(val) => row.toggleSelected(!!val)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+      },
       // 1. Article Link
       {
         id: "url",
@@ -217,14 +252,14 @@ export function ArticlesTable({
             <Button
               size="sm"
               variant={isLaunched ? "ghost" : "default"}
-              disabled={!isCompliant || isProcessing || isLaunched}
+              disabled={!isCompliant || isLaunched}
               title={
                 !isCompliant
                   ? "Article must be compliant first"
                   : isLaunched
                     ? "Campaign already launched"
                     : isProcessing
-                      ? "Campaign in progress"
+                      ? "Campaign in progress — click to re-open"
                       : "Create campaign via Primus"
               }
               onClick={() => onCreateCampaign?.(article)}
@@ -345,23 +380,66 @@ export function ArticlesTable({
       },
     ],
     [onCreateCampaign, onComplianceCheck, checkingId],
+    // rowSelection intentionally excluded — checkbox state is internal
   );
 
   const table = useReactTable({
     data: articles,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection },
     onSortingChange: (updater) => {
       const next = typeof updater === "function" ? updater(sorting) : updater;
       onSortingChange(next);
     },
+    onRowSelectionChange: (updater) => {
+      const next = typeof updater === "function" ? updater(rowSelection) : updater;
+      onRowSelectionChange?.(next);
+    },
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     getRowId: (row) => row.id,
+    enableRowSelection: true,
   });
+
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length;
 
   return (
     <div className="rounded-xl border bg-card shadow-sm">
+      {/* Bulk action bar */}
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between border-b bg-blue-50 px-4 py-2.5">
+          <div>
+            <p className="text-sm font-medium text-blue-800">
+              {selectedCount} article{selectedCount !== 1 ? "s" : ""} selected
+            </p>
+            {selectedCompliantCount < selectedCount && (
+              <p className="text-xs text-amber-600">
+                {selectedCount - selectedCompliantCount} article{selectedCount - selectedCompliantCount !== 1 ? "s are" : " is"} not compliant — all selected articles must be compliant to proceed
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 border-blue-200 text-xs text-blue-700 hover:bg-blue-100"
+              onClick={() => onRowSelectionChange?.({})}
+            >
+              Clear selection
+            </Button>
+            {onBulkCreateCampaign && (
+              <Button
+                size="sm"
+                className="h-7 bg-blue-600 text-xs hover:bg-blue-700"
+                disabled={selectedCompliantCount !== selectedCount}
+                onClick={onBulkCreateCampaign}
+              >
+                Create Batch
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
       {/* Horizontal + vertical scroll */}
       <div className="max-h-[calc(100vh-22rem)] overflow-auto">
         <Table className="min-w-[1600px]">

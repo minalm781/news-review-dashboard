@@ -100,7 +100,8 @@ export function DashboardShell() {
   const statsQuery = useStats();
   const syncMutation = useSyncArticles();
 
-  const [campaignArticle, setCampaignArticle] = useState<ArticleDto | null>(null);
+  const [campaignArticles, setCampaignArticles] = useState<ArticleDto[] | null>(null);
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const complianceMutation = useMutation({
@@ -136,12 +137,13 @@ export function DashboardShell() {
   return (
     <div className="min-h-screen bg-background">
       <CreateCampaignModal
-        article={campaignArticle}
-        onClose={() => setCampaignArticle(null)}
+        articles={campaignArticles}
+        onClose={() => setCampaignArticles(null)}
         onSuccess={() => {
           void queryClient.invalidateQueries({ queryKey: ["articles"] });
           void queryClient.invalidateQueries({ queryKey: ["stats"] });
-          setCampaignArticle(null);
+          setCampaignArticles(null);
+          setRowSelection({});
         }}
       />
       <header className="border-b bg-card">
@@ -233,9 +235,22 @@ export function DashboardShell() {
             page={articlesQuery.data.meta.page}
             totalPages={articlesQuery.data.meta.totalPages}
             onPageChange={setPage}
-            onCreateCampaign={(article) => setCampaignArticle(article)}
+            onCreateCampaign={(article) => setCampaignArticles([article])}
             onComplianceCheck={(articleId) => complianceMutation.mutate(articleId)}
             checkingId={checkingId}
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            selectedCompliantCount={
+              articlesQuery.data.data.filter(
+                (a) => rowSelection[a.id] && a.complianceStatus === "compliant",
+              ).length
+            }
+            onBulkCreateCampaign={() => {
+              const selected = articlesQuery.data.data.filter(
+                (a) => rowSelection[a.id] && a.complianceStatus === "compliant",
+              );
+              if (selected.length > 0) setCampaignArticles(selected);
+            }}
           />
         )}
 

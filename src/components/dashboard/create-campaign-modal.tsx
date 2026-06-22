@@ -27,9 +27,7 @@ const TEAMS = [
 
 const TRAFFIC_ROUTES = [
   { label: "Facebook → Ginsu", source: "Facebook", lander: "Ginsu" },
-  { label: "Google → Ginsu", source: "Google", lander: "Ginsu" },
   { label: "Facebook → RS4C", source: "Facebook", lander: "RS4C" },
-  { label: "Taboola → Ginsu", source: "Taboola", lander: "Ginsu" },
 ];
 
 const COUNTRIES = [
@@ -50,14 +48,10 @@ const MEDIA_TYPES = ["VIDEO", "IMAGE"];
 const CLICK_MODELS = ["2C", "3C"];
 const LANDER_TYPES = ["SERP"];
 const CAMPAIGN_STATUSES = ["ACTIVE", "PAUSED", "DRAFT"];
-const CAMPAIGN_LAUNCH_SETTINGS = [
-  "GINSU_2C_TCPA_MB_US",
-  "GINSU_2C_SMART_MB_US-0.28",
-  "GINSU_2C_SMART_MB_US-0.25",
-  "GINSU_2C_MAX_CONV_TB_US",
-  "GINSU_2C_SMART_MB_US-0.35",
-  "GINSU_2C_SMART_TB_US-0.35",
-];
+const CAMPAIGN_LAUNCH_SETTINGS: Record<string, string[]> = {
+  "Facebook → Ginsu": ["Generic/Special Ad - HV - DT - G3C"],
+  "Facebook → RS4C": ["LOWEST_COST_WITHOUT_CAP_ASC_AD"],
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -211,13 +205,13 @@ const DEFAULT_FORM: FormData = {
 // ─── Main modal ───────────────────────────────────────────────────────────────
 
 interface CreateCampaignModalProps {
-  article: ArticleDto | null;
+  articles: ArticleDto[] | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export function CreateCampaignModal({
-  article,
+  articles,
   onClose,
   onSuccess,
 }: CreateCampaignModalProps) {
@@ -251,7 +245,7 @@ export function CreateCampaignModal({
   );
 
   async function handleCreateBatch() {
-    if (!article) return;
+    if (!articles?.length) return;
     setSubmitting(true);
     setError("");
 
@@ -260,7 +254,7 @@ export function CreateCampaignModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          articleId: article.id,
+          articleIds: articles.map((a) => a.id),
           batchName,
           ...form,
         }),
@@ -293,7 +287,9 @@ export function CreateCampaignModal({
     setBatchName(generateBatchName("Taboola", "Ginsu"));
   }
 
-  if (!article) return null;
+  if (!articles?.length) return null;
+
+  const articleCount = articles.length;
 
   return (
     <div
@@ -338,7 +334,9 @@ export function CreateCampaignModal({
                 )}
               </div>
               <p className="mt-0.5 text-xs text-gray-400">
-                Build campaign batches in 4 simple steps
+                {articleCount === 1
+                  ? articles[0]?.headline ?? "Build campaign batches in 4 simple steps"
+                  : `${articleCount} articles · Build campaign batches in 4 simple steps`}
               </p>
             </div>
           </div>
@@ -385,7 +383,13 @@ export function CreateCampaignModal({
                 <label className="mb-1.5 flex items-center gap-1 text-sm font-medium text-gray-700">
                   Traffic Route <Info className="h-3.5 w-3.5 text-gray-400" />
                 </label>
-                <Select value={form.trafficRoute} onValueChange={(v) => update("trafficRoute", v)}>
+                <Select
+                  value={form.trafficRoute}
+                  onValueChange={(v) => {
+                    update("trafficRoute", v);
+                    update("campaignLaunchSettings", "");
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select route" />
                   </SelectTrigger>
@@ -617,12 +621,17 @@ export function CreateCampaignModal({
                     <Select
                       value={form.campaignLaunchSettings}
                       onValueChange={(v) => update("campaignLaunchSettings", v)}
+                      disabled={!form.trafficRoute || !CAMPAIGN_LAUNCH_SETTINGS[form.trafficRoute]}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select campaign launch settings" />
+                        <SelectValue placeholder={
+                          form.trafficRoute
+                            ? "Select campaign launch settings"
+                            : "Select a Traffic Route first"
+                        } />
                       </SelectTrigger>
                       <SelectContent>
-                        {CAMPAIGN_LAUNCH_SETTINGS.map((s) => (
+                        {(CAMPAIGN_LAUNCH_SETTINGS[form.trafficRoute] ?? []).map((s) => (
                           <SelectItem key={s} value={s}>{s}</SelectItem>
                         ))}
                       </SelectContent>
