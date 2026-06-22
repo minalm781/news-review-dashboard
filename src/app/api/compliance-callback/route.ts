@@ -3,19 +3,12 @@ import { z } from "zod";
 
 import prisma from "@/lib/db";
 
-// Validates Basic Auth header sent by n8n callback nodes
+// Validates Bearer token sent by n8n callback nodes
+// CALLBACK_SECRET should be the full Authorization header value e.g. "Bearer sk-v1-..."
 function isAuthorized(request: NextRequest): boolean {
   const authHeader = request.headers.get("authorization") ?? "";
-  if (!authHeader.startsWith("Basic ")) return false;
-
-  const base64 = authHeader.slice("Basic ".length);
-  const decoded = Buffer.from(base64, "base64").toString("utf-8");
-  const [username, password] = decoded.split(":");
-
-  const expectedUser = process.env.CALLBACK_USERNAME ?? "n8n";
-  const expectedPass = process.env.CALLBACK_SECRET ?? "";
-
-  return username === expectedUser && password === expectedPass;
+  const expected = process.env.CALLBACK_SECRET ?? "";
+  return authHeader === expected;
 }
 
 const bodySchema = z.object({
